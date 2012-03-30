@@ -1,0 +1,202 @@
+=begin
+ * @author Ritesh Agrawal
+ * @version 2.0
+ * Takes Bibtex output and returns Office2007 XML String
+=end
+
+class Bib2OfficeXML 
+ 
+  attr_reader :doc_types, :generic, :book , :book_section, :report, :misc, :article_in_preiodical, :conference_proceedings, :journal_article
+  
+  def initialize
+    @doc_types = {
+          'article' => {'name' => 'JournalArticle', 'fields' => ['journal_article'] },
+          'book'    => {'name' => 'Book', 'fields' => ['book']},
+          'booklet' => {'name' => 'Book', 'fields' => ['book']}, 
+          'conference'=> {'name' => 'ConferenceProceedings', 'fields' => ['conference_proceedings']},
+          'inbook'  => {'name' => 'BookSection', 'fields' => ['book_section']},
+          'incollection' => {'name' => 'ArticleInAPeriodical', 'fields' => ['article_in_preiodical']},
+          'inproceedings' => {'name' => 'ConferenceProceedings', 'fields' => ['conference_proceedings']},
+          'manual' => {'name' => 'Report', 'fields' => ['report']},
+          'masterthesis' => {'name' => 'Report', 'fields' => ['report']},
+          'misc' => {'name' => 'Misc', 'fields' => ['Misc']},
+          'phdthesis'  => {'name' => 'Report', 'fields' => ['report']},
+          'proceedings' => {'name' => 'ConferenceProceedings', 'fields' => ['conference_proceedings']},
+          'techreport' => {'name' => 'Report', 'fields' => ['report']},
+          'unpublished' => {'name' => 'Misc', 'fields' => ['misc']}
+        }.freeze
+  
+    @generic = {
+              'id' => 'b:Tag', 
+              'title' => 'b:Title', 
+              'year' => 'b:Year'
+            }.freeze
+
+    @book = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'place' => 'b:CountryRegion',
+            'publisher' => 'b:Publisher',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'volume' => 'b:Volume',
+            'issn' => 'b:StandardNumber',
+            'pages' => 'b:Pages'
+        }.freeze
+
+    @book_section = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'sec_title'=> 'b:BookTitle',
+            'pages' => 'b:Pages',
+            'place' => 'b:CountryRegion',
+            'publisher' => 'b:Publisher',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'volume' => 'b:Volume',
+            'issn' => 'b:StandardNumber'
+          }.freeze
+        
+  @journal_article = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'journal' => 'b:JournalName',
+            'month' => 'b:Month',
+            'day' => 'b:Day',
+            'pages' => 'b:Pages',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'publisher' => 'b:Publisher',
+            'volume' => 'b:Volume',
+            'issue' => 'b:Issue',
+            'issn' => 'b:StandardNumber'
+        }.freeze
+
+  @article_in_preiodical = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'journal' => 'b:PeriodicalTitle',
+            'month' => 'b:Month',
+            'day' => 'b:Day',
+            'pages' => 'b:Pages',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'publisher' => 'b:Publisher',
+            'volume' => 'b:Volume',
+            'issue' => 'b:Issue',
+            'issn' => 'b:StandardNumber'
+        }.freeze
+
+  @conference_proceedings = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'pages' => 'b:Pages',
+            'journal' => 'b:ConferenceName',
+            'place' => 'b:City',
+            'publisher' => 'b:Publisher',
+            'volume' => 'b:Volume',
+            'issn' => 'b:StandardNumber'
+    }.freeze
+    
+  @report = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'publisher' => 'b:Publisher',
+            'place' => 'b:City',
+            'pages' => 'b:Pages',
+            'doctype' => 'b:ThesisType',
+            'issn' => 'b:StandardNumber'
+        }.freeze
+
+
+  @misc = {
+            'author' => 'b:Author/b:Author/b:NameList',
+            'sec_title' => 'b:PublicationTitle',
+            'year' => 'b:Year',
+            'month' => 'b:Month',
+            'day' => 'b:Day',
+            'place' => 'b:CountryRegion',
+            'publisher' => 'b:Publisher',
+            'editor' => 'b:Author/b:Editor/b:NameList',
+            'pages' => 'b:Pages',
+            'volume' => 'b:Volume',
+            'issue' => 'b:Issue',
+            'issn' => 'b:StandardNumber'
+        }.freeze
+        
+  end
+  
+  
+  # Function: EXPORT
+  # data: Bibtex parsed data - single entity
+  
+	def export(data)
+	
+		sources =  '<?xml version="1.0" encoding="UTF-8" ?>'
+		sources = sources + '<b:Sources SelectedStyle="" xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography" xmlns="http://schemas.openxmlformats.org/officeDocument/2006/bibliography">'
+		
+		data.each do |record|
+		  #sanity check
+		  next if record.nil? or record.empty?
+		  
+		  type = @doc_types[record.type.to_s]
+		  next if type.nil? or type.empty?
+		  
+		  source = '<b:SourceType>' + type["name"] + '</b:SourceType>'
+    
+			#Process Generic Fields
+			generic.each do |field, tag|
+				source = source + "<#{tag}>" + record.send(field).to_s + "</#{tag}>"
+			end
+			
+			#Process specific fields
+		  fields = type["fields"]
+		  
+      fields.each do |field_for|
+          send(field_for).each do |field, tag|
+              unless record.respond_to?(field)
+            	  puts "missing #{field}"
+            	  next
+            	end
+            	if(field == "author" and record.author.length > 0 )
+      					source = source + process_authors(record.author)
+      				elsif(field == "editor" )
+      					source = source + process_editors(record.editor)	
+      				else
+      				  source = source + "<#{tag}>" + record.send(field).to_s + "</#{tag}>" 
+      				end
+          end #loop field_for
+      end #loop fields
+      source = source + '</b:Source>'
+			sources = sources + source    
+		  
+		end # loop data
+		sources = sources + '</b:Sources>';
+		return sources;
+		
+	end #function export
+	
+	private 
+	  def process_authors(authors)
+	    return if authors.nil? or authors.empty?
+	    source = '<b:Author><b:Author><b:NameList>'
+	    authors.each do |author|
+	      source = source + author_tag(author)
+	    end
+	    source = source + '</b:NameList></b:Author></b:Author>'
+	    return source
+	  end
+	  
+	  def process_editors(editors)
+	    return if editors.nil? or editors.empty?
+	    source = '<b:Author><b:Editor><b:NameList>'
+	    editors.each do |author|
+	      source = source + author_tag(author)
+	    end
+	    source = source + '</b:NameList></b:Editor></b:Author>'
+	    return source
+	  end
+	  
+	  def author_tag(author)
+	    last, first = author.split(',', 2)
+	    a = '<b:Last>' + last + '</b:Last>'
+	    b = '<b:First>' + first + '</b:First>'
+	    return '<b:Person>' + a + b + '</b:Person>'
+	  end
+	  
+	  
+	
+end 
+		
+	
